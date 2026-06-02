@@ -19,6 +19,7 @@ mkdir -p "$MACOS_DIR" "$RESOURCES_DIR"
 
 cp "$BUILD_DIR/$EXECUTABLE_NAME" "$MACOS_DIR/$EXECUTABLE_NAME"
 cp "$ROOT_DIR/Resources/spritesheet.png" "$RESOURCES_DIR/spritesheet.png"
+cp "$ROOT_DIR/Resources/AppIcon.icns" "$RESOURCES_DIR/AppIcon.icns"
 
 cat > "$CONTENTS_DIR/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -33,6 +34,8 @@ cat > "$CONTENTS_DIR/Info.plist" <<PLIST
   <string>$APP_NAME</string>
   <key>CFBundleDisplayName</key>
   <string>玖玖提醒</string>
+  <key>CFBundleIconFile</key>
+  <string>AppIcon</string>
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>CFBundleShortVersionString</key>

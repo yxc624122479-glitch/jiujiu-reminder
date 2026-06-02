@@ -4,6 +4,8 @@
 
 玖玖会常驻桌面，用不同动作提示工作、休息、喝水和状态切换。桌宠素材来自 `Resources/spritesheet.png`，按 Codex Pet 的 `8 x 9` atlas 约定组织。
 
+App 图标来自玖玖猫咪形象，打包脚本会自动把 `Resources/AppIcon.icns` 写入 `.app`。
+
 ## 功能
 
 - 桌面透明悬浮宠物窗口，可拖拽并保存位置。
@@ -41,6 +43,8 @@ open "dist/Jiujiu Reminder.app"
 .
 ├── Package.swift
 ├── Resources/
+│   ├── AppIcon.icns
+│   ├── AppIcon.png
 │   └── spritesheet.png
 ├── Sources/JiujiuReminderApp/
 │   ├── AppDelegate.swift
