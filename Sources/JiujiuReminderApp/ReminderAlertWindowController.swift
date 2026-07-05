@@ -1,7 +1,13 @@
 import AppKit
 
 @MainActor
-final class ReminderAlertWindowController: NSWindowController {
+final class ReminderAlertWindowController: NSWindowController, NSWindowDelegate {
+    private enum AlertKind {
+        case unconfigured
+        case rest
+        case water
+    }
+
     private let titleLabel = NSTextField(labelWithString: "")
     private let messageLabel = NSTextField(wrappingLabelWithString: "")
     private let countdownLabel = NSTextField(labelWithString: "")
@@ -11,11 +17,14 @@ final class ReminderAlertWindowController: NSWindowController {
     private var onRestComplete: (() -> Void)?
     private var onWaterDone: (() -> Void)?
     private var onWaterSnooze: (() -> Void)?
+    private var kind: AlertKind = .unconfigured
+    private var isDismissed = false
+    private var isResolving = false
 
     init(title: String, message: String) {
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 420, height: 210),
-            styleMask: [.titled],
+            styleMask: [.titled, .closable, .miniaturizable],
             backing: .buffered,
             defer: false
         )
@@ -26,6 +35,7 @@ final class ReminderAlertWindowController: NSWindowController {
 
         super.init(window: window)
 
+        window.delegate = self
         window.contentView = buildContentView(title: title, message: message)
     }
 
@@ -35,8 +45,10 @@ final class ReminderAlertWindowController: NSWindowController {
     }
 
     func configureRest(deadline: Date, onComplete: @escaping () -> Void) {
+        kind = .rest
         self.deadline = deadline
         onRestComplete = onComplete
+        window?.standardWindowButton(.closeButton)?.toolTip = "关闭弹窗，休息倒计时继续"
 
         let button = NSButton(title: "休息完成", target: nil, action: nil)
         button.bezelStyle = .rounded
@@ -57,8 +69,10 @@ final class ReminderAlertWindowController: NSWindowController {
     }
 
     func configureWater(snoozeMinutes: Int, onDone: @escaping () -> Void, onSnooze: @escaping () -> Void) {
+        kind = .water
         onWaterDone = onDone
         onWaterSnooze = onSnooze
+        window?.standardWindowButton(.closeButton)?.toolTip = "关闭并在 \(snoozeMinutes) 分钟后提醒"
         countdownLabel.stringValue = "现在站起来喝几口水。"
 
         let doneButton = NSButton(title: "我喝了", target: self, action: #selector(doneWater))
@@ -79,10 +93,30 @@ final class ReminderAlertWindowController: NSWindowController {
         window?.orderFrontRegardless()
     }
 
-    override func close() {
-        countdownTimer?.invalidate()
-        countdownTimer = nil
-        super.close()
+    func windowShouldClose(_ sender: NSWindow) -> Bool {
+        guard !isResolving else { return true }
+
+        switch kind {
+        case .rest:
+            if let deadline, deadline <= Date() {
+                resolveRest(closeWindow: false)
+            } else {
+                isDismissed = true
+            }
+        case .water:
+            resolveWater(using: onWaterSnooze, closeWindow: false)
+        case .unconfigured:
+            break
+        }
+
+        return true
+    }
+
+    func windowWillClose(_ notification: Notification) {
+        if kind == .rest, isDismissed, !isResolving {
+            return
+        }
+        stopCountdownTimer()
     }
 
     private func buildContentView(title: String, message: String) -> NSView {
@@ -112,8 +146,10 @@ final class ReminderAlertWindowController: NSWindowController {
         if remaining == 0 {
             countdownLabel.stringValue = "休息时间到了，点完成开始下一轮。"
             completionButton?.isEnabled = true
-            countdownTimer?.invalidate()
-            countdownTimer = nil
+            stopCountdownTimer()
+            if isDismissed {
+                resolveRest(closeWindow: false)
+            }
             return
         }
 
@@ -123,17 +159,45 @@ final class ReminderAlertWindowController: NSWindowController {
     }
 
     @objc private func completeRest(_ sender: NSButton) {
-        onRestComplete?()
-        close()
+        resolveRest(closeWindow: true)
     }
 
     @objc private func doneWater(_ sender: NSButton) {
-        onWaterDone?()
-        close()
+        resolveWater(using: onWaterDone, closeWindow: true)
     }
 
     @objc private func snoozeWater(_ sender: NSButton) {
-        onWaterSnooze?()
-        close()
+        resolveWater(using: onWaterSnooze, closeWindow: true)
+    }
+
+    private func resolveRest(closeWindow: Bool) {
+        guard !isResolving else { return }
+        isResolving = true
+        stopCountdownTimer()
+        let completion = onRestComplete
+        onRestComplete = nil
+        completion?()
+
+        if closeWindow {
+            window?.close()
+        }
+    }
+
+    private func resolveWater(using action: (() -> Void)?, closeWindow: Bool) {
+        guard !isResolving else { return }
+        isResolving = true
+        let completion = action
+        onWaterDone = nil
+        onWaterSnooze = nil
+        completion?()
+
+        if closeWindow {
+            window?.close()
+        }
+    }
+
+    private func stopCountdownTimer() {
+        countdownTimer?.invalidate()
+        countdownTimer = nil
     }
 }

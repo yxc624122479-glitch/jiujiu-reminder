@@ -3,4 +3,6 @@
 dist/
 hatch-runs/
 output/
+__pycache__/
+*.pyc
 *.codex-pet.zip
