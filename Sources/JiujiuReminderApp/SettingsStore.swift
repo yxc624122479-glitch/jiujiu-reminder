@@ -8,6 +8,8 @@ struct ReminderSettings {
     var hasCompletedFirstRun: Bool
     var launchAtLoginEnabled: Bool
     var petDisplayMode: PetDisplayMode
+    var petSkinID: PetSkinID
+    var petScale: CGFloat
     var petPosition: NSPoint?
 
     static let defaults = ReminderSettings(
@@ -18,6 +20,8 @@ struct ReminderSettings {
         hasCompletedFirstRun: false,
         launchAtLoginEnabled: false,
         petDisplayMode: .automatic,
+        petSkinID: .classic,
+        petScale: PetSizePreset.standard.scale,
         petPosition: nil
     )
 }
@@ -31,6 +35,8 @@ final class SettingsStore {
         static let hasCompletedFirstRun = "hasCompletedFirstRun"
         static let launchAtLoginEnabled = "launchAtLoginEnabled"
         static let petDisplayMode = "petDisplayMode"
+        static let petSkinID = "petSkinID"
+        static let petScale = "petScale"
         static let petPositionX = "petPositionX"
         static let petPositionY = "petPositionY"
     }
@@ -55,7 +61,9 @@ final class SettingsStore {
             snoozeMinutes: positiveInt(forKey: Key.snoozeMinutes, fallback: base.snoozeMinutes),
             hasCompletedFirstRun: defaults.bool(forKey: Key.hasCompletedFirstRun),
             launchAtLoginEnabled: defaults.bool(forKey: Key.launchAtLoginEnabled),
-            petDisplayMode: PetDisplayMode(rawValue: defaults.string(forKey: Key.petDisplayMode) ?? "") ?? base.petDisplayMode,
+            petDisplayMode: PetDisplayMode(persistedValue: defaults.string(forKey: Key.petDisplayMode) ?? base.petDisplayMode.persistedValue),
+            petSkinID: PetSkinID(rawValue: defaults.string(forKey: Key.petSkinID) ?? "") ?? base.petSkinID,
+            petScale: petScale(fallback: base.petScale),
             petPosition: position
         )
     }
@@ -67,7 +75,9 @@ final class SettingsStore {
         defaults.set(settings.snoozeMinutes, forKey: Key.snoozeMinutes)
         defaults.set(settings.hasCompletedFirstRun, forKey: Key.hasCompletedFirstRun)
         defaults.set(settings.launchAtLoginEnabled, forKey: Key.launchAtLoginEnabled)
-        defaults.set(settings.petDisplayMode.rawValue, forKey: Key.petDisplayMode)
+        defaults.set(settings.petDisplayMode.persistedValue, forKey: Key.petDisplayMode)
+        defaults.set(settings.petSkinID.rawValue, forKey: Key.petSkinID)
+        defaults.set(Double(settings.petScale), forKey: Key.petScale)
 
         if let position = settings.petPosition {
             defaults.set(position.x, forKey: Key.petPositionX)
@@ -81,7 +91,15 @@ final class SettingsStore {
     }
 
     func savePetDisplayMode(_ mode: PetDisplayMode) {
-        defaults.set(mode.rawValue, forKey: Key.petDisplayMode)
+        defaults.set(mode.persistedValue, forKey: Key.petDisplayMode)
+    }
+
+    func savePetSkinID(_ skinID: PetSkinID) {
+        defaults.set(skinID.rawValue, forKey: Key.petSkinID)
+    }
+
+    func savePetScale(_ scale: CGFloat) {
+        defaults.set(Double(scale), forKey: Key.petScale)
     }
 
     private func positiveInt(forKey key: String, fallback: Int) -> Int {
@@ -91,5 +109,14 @@ final class SettingsStore {
 
         let value = defaults.integer(forKey: key)
         return value > 0 ? value : fallback
+    }
+
+    private func petScale(fallback: CGFloat) -> CGFloat {
+        guard defaults.object(forKey: Key.petScale) != nil else {
+            return fallback
+        }
+
+        let value = CGFloat(defaults.double(forKey: Key.petScale))
+        return (0.6...1.5).contains(value) ? value : fallback
     }
 }

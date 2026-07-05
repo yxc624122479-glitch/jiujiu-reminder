@@ -13,9 +13,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.regular)
 
         settings = settingsStore.load()
-        let petWindowController = PetWindowController(initialPosition: settings.petPosition)
+        let petWindowController = PetWindowController(
+            initialPosition: settings.petPosition,
+            scale: settings.petScale,
+            skinID: settings.petSkinID
+        )
         petWindowController.delegate = self
         self.petWindowController = petWindowController
+        if petWindowController.activeSkinID != settings.petSkinID {
+            settings.petSkinID = petWindowController.activeSkinID
+            settings.petDisplayMode = .automatic
+            settingsStore.save(settings)
+        } else {
+            let normalizedMode = settings.petDisplayMode.normalized(
+                for: PetSkinDefinition.definition(for: settings.petSkinID)
+            )
+            if normalizedMode != settings.petDisplayMode {
+                settings.petDisplayMode = normalizedMode
+                settingsStore.savePetDisplayMode(normalizedMode)
+            }
+        }
         petWindowController.setDisplayMode(settings.petDisplayMode)
         petWindowController.show()
 
@@ -102,9 +119,35 @@ extension AppDelegate: PetWindowControllerDelegate {
     }
 
     func petWindowDidRequestDisplayMode(_ mode: PetDisplayMode) {
-        settings.petDisplayMode = mode
-        settingsStore.savePetDisplayMode(mode)
-        petWindowController?.setDisplayMode(mode)
+        let normalizedMode = mode.normalized(for: PetSkinDefinition.definition(for: settings.petSkinID))
+        settings.petDisplayMode = normalizedMode
+        settingsStore.savePetDisplayMode(normalizedMode)
+        petWindowController?.setDisplayMode(normalizedMode)
+    }
+
+    func petWindowDidRequestSkin(_ skinID: PetSkinID) {
+        guard skinID != settings.petSkinID else { return }
+        guard let normalizedMode = petWindowController?.setSkin(
+            skinID,
+            displayMode: settings.petDisplayMode,
+            scale: settings.petScale
+        ) else {
+            showMessage(
+                title: "无法切换桌宠皮肤",
+                message: "“\(skinID.title)”的动画资源不完整，已保留当前皮肤。"
+            )
+            return
+        }
+
+        settings.petSkinID = skinID
+        settings.petDisplayMode = normalizedMode
+        settingsStore.save(settings)
+    }
+
+    func petWindowDidRequestScale(_ scale: CGFloat) {
+        settings.petScale = scale
+        settingsStore.savePetScale(scale)
+        petWindowController?.setScale(scale)
     }
 
     func petWindowDidRequestQuit() {
@@ -127,6 +170,14 @@ extension AppDelegate: PetWindowControllerDelegate {
         settings.petDisplayMode
     }
 
+    func petWindowSkinID() -> PetSkinID {
+        settings.petSkinID
+    }
+
+    func petWindowScale() -> CGFloat {
+        settings.petScale
+    }
+
     func petWindowDidMove(to point: NSPoint) {
         settings.petPosition = point
         settingsStore.savePetPosition(point)
@@ -139,7 +190,7 @@ extension AppDelegate: ReminderEngineDelegate {
     }
 
     func reminderEngineDidStartRest(until deadline: Date) {
-        petWindowController?.pulse()
+        petWindowController?.pulse(.rest)
 
         let controller = ReminderAlertWindowController(
             title: "该起来活动一下了",
@@ -156,7 +207,7 @@ extension AppDelegate: ReminderEngineDelegate {
     }
 
     func reminderEngineDidTriggerWater() {
-        petWindowController?.pulse()
+        petWindowController?.pulse(.water)
 
         let controller = ReminderAlertWindowController(
             title: "该喝水了",
